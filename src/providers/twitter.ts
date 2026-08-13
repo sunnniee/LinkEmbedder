@@ -170,7 +170,12 @@ export const twitterRouter = new Hono();
 
 twitterRouter.get("/oembed", c => {
   const q = c.req.query();
-  return c.json(buildOEmbed({ type: (q.ttype as "link" | "photo" | "video") ?? "link", author_url: q.link, provider_name: q.provider ?? "LinkEmbedder / Twitter" }));
+  return c.json(buildOEmbed({
+    type: (q.ttype as "link" | "photo" | "video") ?? "link",
+    author_name: q.ttype === "video" ? q.desc : undefined,
+    author_url: q.link,
+    provider_name: q.provider ?? "LinkEmbedder / Twitter"
+  }));
 });
 
 twitterRouter.get("/grid/:id", async c => {
