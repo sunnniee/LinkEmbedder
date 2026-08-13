@@ -188,8 +188,7 @@ export const tiktokRouter = new Hono();
 tiktokRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
-    type: (q.type as any) || "link",
-    author_name: q.type === "video" ? q.desc : undefined,
+    type: "rich",
     author_url: q.url,
     provider_name: "LinkEmbedder / TikTok"
   }));
@@ -373,11 +372,11 @@ async function handleVideoEmbed(c: Context, awemeId: string, embedIndex = -1): P
     const { images } = item.imagePost;
     if (embedIndex >= 0) {
       const idx = Math.min(embedIndex, images.length - 1);
-      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/images/${awemeId}/${idx + 1}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, imageUrl: `${host}/tiktok/images/${awemeId}/${idx + 1}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
     } else if (images.length > 1) {
-      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/grid/${awemeId}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, imageUrl: `${host}/tiktok/grid/${awemeId}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
     } else {
-      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/images/${awemeId}/1`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, imageUrl: `${host}/tiktok/images/${awemeId}/1`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
     }
   }
 
@@ -385,7 +384,6 @@ async function handleVideoEmbed(c: Context, awemeId: string, embedIndex = -1): P
     title: authorName,
     description,
     url: postUrl,
-    proxyUrl: c.req.url,
     imageUrl: `${host}/tiktok/cover/${awemeId}`,
     videoUrl: `${host}/tiktok/play/${awemeId}/video.mp4`,
     videoWidth: item.video?.width,

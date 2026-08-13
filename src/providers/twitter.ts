@@ -49,6 +49,14 @@ async function fetchTweet(id: string): Promise<SyndicationTweet | null> {
   } catch { return null; }
 }
 
+function scaleFromAspectRatio(ar?: [number, number]): { width?: number; height?: number; } {
+  if (!ar || !ar[0] || !ar[1]) return {};
+  const base = 720;
+  return ar[0] >= ar[1]
+    ? { width: base, height: Math.round((base * ar[1]) / ar[0]) }
+    : { width: Math.round((base * ar[0]) / ar[1]), height: base };
+}
+
 function getBestVideo(tweet: SyndicationTweet): { url: string; width?: number; height?: number; thumb?: string; } | null {
   const medias = tweet.mediaDetails ?? tweet.extended_entities?.media ?? tweet.entities?.media ?? [];
   for (const m of medias) {
@@ -57,20 +65,22 @@ function getBestVideo(tweet: SyndicationTweet): { url: string; width?: number; h
         .filter(v => v.content_type === "video/mp4" && v.bitrate !== undefined)
         .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
       if (variants[0]) {
-        const ar = m.video_info.aspect_ratio;
-        return { url: variants[0].url, width: ar?.[0] ? ar[0] * 100 : undefined, height: ar?.[1] ? ar[1] * 100 : undefined, thumb: m.media_url_https };
+        const { width, height } = scaleFromAspectRatio(m.video_info.aspect_ratio);
+        return { url: variants[0].url, width, height, thumb: m.media_url_https };
       }
     }
   }
 
   if (tweet.video) {
-    const ar = tweet.video.aspectRatio;
     let url = tweet.video.url;
     if (!url && tweet.video.variants?.length) {
       const mp4s = tweet.video.variants.filter(v => v.type === "video/mp4");
       url = mp4s[mp4s.length - 1]?.src ?? mp4s[0]?.src;
     }
-    if (url) return { url, width: ar?.[0] ? ar[0] * 100 : undefined, height: ar?.[1] ? ar[1] * 100 : undefined, thumb: tweet.video.poster };
+    if (url) {
+      const { width, height } = scaleFromAspectRatio(tweet.video.aspectRatio);
+      return { url, width, height, thumb: tweet.video.poster };
+    }
   }
 
   return null;
@@ -135,7 +145,6 @@ async function handleTweet(c: Context, tweetId: string, routeUser?: string, embe
       title: authorName,
       description: text,
       url: tweetUrl,
-      proxyUrl: c.req.url,
       imageUrl: video.thumb,
       videoUrl: video.url,
       videoWidth: video.width,
@@ -171,8 +180,7 @@ export const twitterRouter = new Hono();
 twitterRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
-    type: (q.ttype as "link" | "photo" | "video") ?? "link",
-    author_name: q.ttype === "video" ? q.desc : undefined,
+    type: "rich",
     author_url: q.link,
     provider_name: q.provider ?? "LinkEmbedder / Twitter"
   }));

@@ -254,8 +254,7 @@ export const instagramRouter = new Hono();
 instagramRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
-    type: (q.type as any) || "link",
-    author_name: q.type === "video" ? q.desc : undefined,
+    type: "rich",
     author_url: q.url,
     provider_name: "LinkEmbedder / Instagram"
   }));
@@ -394,7 +393,6 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
       title,
       description,
       url: originalUrl,
-      proxyUrl: c.req.url,
       imageUrl: `${host}/ig/thumb/${postId}/${idx + 1}`,
       videoUrl: `${host}/ig/videos/${postId}/${idx + 1}/video.mp4`,
       color: INSTA_COLOR,
@@ -408,7 +406,6 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
       title,
       description,
       url: originalUrl,
-      proxyUrl: c.req.url,
       imageUrl: `${host}/ig/grid/${postId}`,
       color: INSTA_COLOR,
       siteName: "Instagram",
@@ -421,7 +418,6 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
     title,
     description,
     url: originalUrl,
-    proxyUrl: c.req.url,
     imageUrl: `${host}/ig/images/${postId}/1`,
     color: INSTA_COLOR,
     siteName: "Instagram",
