@@ -254,8 +254,7 @@ export const instagramRouter = new Hono();
 instagramRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
-    type: (q.type as any) || "link",
-    author_name: q.type === "video" ? q.desc : undefined,
+    type: "rich",
     author_url: q.url,
     provider_name: "LinkEmbedder / Instagram"
   }));
@@ -386,7 +385,7 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
   }
 
   const description = data.caption.slice(0, 280) + (data.caption.length > 280 ? "…" : "");
-  const oembedUrl = `${host}/ig/oembed?url=${encodeURIComponent(originalUrl)}&type=${isVideo ? "video" : "link"}&desc=${encodeURIComponent(description)}`;
+  const oembedUrl = `${host}/ig/oembed?url=${encodeURIComponent(originalUrl)}`;
   const title = `@${data.username}`;
 
   if (isVideo) {

@@ -128,7 +128,7 @@ async function handleTweet(c: Context, tweetId: string, routeUser?: string, embe
     if (photos.length) return c.redirect(photos[Math.max(0, embedIndex >= 0 ? Math.min(embedIndex, photos.length - 1) : 0)].url, 302);
   }
 
-  const oembedUrl = `${host}/twitter/oembed?desc=${encodeURIComponent(text)}&link=${encodeURIComponent(tweetUrl)}&ttype=${video ? "video" : "link"}`;
+  const oembedUrl = `${host}/twitter/oembed?link=${encodeURIComponent(tweetUrl)}`;
 
   if (video) {
     return c.html(buildEmbedHtml({
@@ -171,8 +171,7 @@ export const twitterRouter = new Hono();
 twitterRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
-    type: (q.ttype as "link" | "photo" | "video") ?? "link",
-    author_name: q.ttype === "video" ? q.desc : undefined,
+    type: "rich",
     author_url: q.link,
     provider_name: q.provider ?? "LinkEmbedder / Twitter"
   }));
