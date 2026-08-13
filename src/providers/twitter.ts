@@ -124,7 +124,19 @@ async function handleTweet(c: Context, tweetId: string, routeUser?: string, embe
   const oembedUrl = `${host}/twitter/oembed?desc=${encodeURIComponent(text)}&user=${encodeURIComponent(authorName)}&link=${encodeURIComponent(tweetUrl)}&ttype=${video ? "video" : "link"}`;
 
   if (video) {
-    return c.redirect(`https://fxtwitter.com/${username}/status/${tweetId}`, 302);
+    return c.html(buildEmbedHtml({
+      title: authorName,
+      description: text,
+      url: tweetUrl,
+      proxyUrl: c.req.url,
+      imageUrl: video.thumb,
+      videoUrl: video.url,
+      videoWidth: video.width,
+      videoHeight: video.height,
+      color: TWITTER_COLOR,
+      siteName: "Twitter / X",
+      oembedUrl
+    }));
   }
 
   const photos = getPhotos(tweet);
@@ -133,18 +145,18 @@ async function handleTweet(c: Context, tweetId: string, routeUser?: string, embe
     if (embedIndex >= 0) {
       const idx = Math.min(embedIndex, photos.length - 1);
       const photo = photos[idx];
-      return c.html(buildEmbedHtml({ description: desc, url: tweetUrl, imageUrl: photo.url, imageWidth: photo.width, imageHeight: photo.height, color: TWITTER_COLOR, siteName: "Twitter / X", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description: desc, url: tweetUrl, imageUrl: photo.url, imageWidth: photo.width, imageHeight: photo.height, color: TWITTER_COLOR, siteName: "Twitter / X", largeImage: true, oembedUrl }));
     } else if (photos.length > 1) {
       const imageUrls = photos.slice(0, 4).map(p => p.url);
       const first = photos[0];
-      return c.html(buildEmbedHtml({ description: desc, url: tweetUrl, imageUrl: imageUrls, imageWidth: first.width, imageHeight: first.height, color: TWITTER_COLOR, siteName: "Twitter / X", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description: desc, url: tweetUrl, imageUrl: imageUrls, imageWidth: first.width, imageHeight: first.height, color: TWITTER_COLOR, siteName: "Twitter / X", largeImage: true, oembedUrl }));
     } else {
       const first = photos[0];
-      return c.html(buildEmbedHtml({ description: desc, url: tweetUrl, imageUrl: first.url, imageWidth: first.width, imageHeight: first.height, color: TWITTER_COLOR, siteName: "Twitter / X", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description: desc, url: tweetUrl, imageUrl: first.url, imageWidth: first.width, imageHeight: first.height, color: TWITTER_COLOR, siteName: "Twitter / X", largeImage: true, oembedUrl }));
     }
   }
 
-  return c.html(buildEmbedHtml({ description: text, url: tweetUrl, color: TWITTER_COLOR, siteName: "Twitter / X", oembedUrl }));
+  return c.html(buildEmbedHtml({ title: authorName, description: text, url: tweetUrl, color: TWITTER_COLOR, siteName: "Twitter / X", oembedUrl }));
 }
 
 export const twitterRouter = new Hono();

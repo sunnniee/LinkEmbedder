@@ -370,28 +370,31 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
   const isVideo = media.typeName.includes("Video") || ["reel", "reels", "tv"].includes(type);
 
   if (isDirect) {
-    if (isVideo) return c.redirect(`https://instafix.thororen.com/videos/${postId}/${idx + 1}`, 302);
+    if (isVideo) return c.redirect(`${host}/ig/videos/${postId}/${idx + 1}/video.mp4`, 302);
     return c.redirect(`${host}/ig/images/${postId}/${idx + 1}`, 302);
   }
 
   const description = data.caption.slice(0, 280) + (data.caption.length > 280 ? "…" : "");
   const oembedUrl = `${host}/ig/oembed?user=${encodeURIComponent(`@${data.username}`)}&url=${encodeURIComponent(originalUrl)}&type=${isVideo ? "video" : "link"}`;
+  const title = `@${data.username}`;
 
   if (isVideo) {
-    const targetUrl = `https://instafix.thororen.com/${type}/${postId}${idx > 0 ? `/${idx + 1}` : ""}`;
-    try {
-      const res = await fetch(targetUrl, { headers: { "User-Agent": ua ?? "" } });
-      if (res.ok) {
-        let html = await res.text();
-        html = html.replace(/(content|href)="\//g, '$1="https://instafix.thororen.com/');
-        return c.html(html);
-      }
-    } catch { }
-    return c.redirect(targetUrl, 302);
+    return c.html(buildEmbedHtml({
+      title,
+      description,
+      url: originalUrl,
+      proxyUrl: c.req.url,
+      imageUrl: `${host}/ig/thumb/${postId}/${idx + 1}`,
+      videoUrl: `${host}/ig/videos/${postId}/${idx + 1}/video.mp4`,
+      color: INSTA_COLOR,
+      siteName: "Instagram",
+      oembedUrl
+    }));
   }
 
   if (isGrid) {
     return c.html(buildEmbedHtml({
+      title,
       description,
       url: originalUrl,
       proxyUrl: c.req.url,
@@ -404,6 +407,7 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
   }
 
   return c.html(buildEmbedHtml({
+    title,
     description,
     url: originalUrl,
     proxyUrl: c.req.url,

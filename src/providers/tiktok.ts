@@ -359,7 +359,7 @@ async function handleVideoEmbed(c: Context, awemeId: string, embedIndex = -1): P
   const playUrl = findPlayUrl(item.video);
 
   if (isDirect) {
-    if (isVideo && playUrl) return c.redirect(`https://fxtiktok.thororen.com/generate/video/${awemeId}.mp4`, 302);
+    if (isVideo && playUrl) return c.redirect(`${host}/tiktok/play/${awemeId}/video.mp4`, 302);
     if (item.imagePost?.images?.length) return c.redirect(`${host}/tiktok/images/${awemeId}/${Math.max(1, embedIndex + 1)}`, 302);
     return c.redirect(postUrl, 302);
   }
@@ -370,15 +370,27 @@ async function handleVideoEmbed(c: Context, awemeId: string, embedIndex = -1): P
     const { images } = item.imagePost;
     if (embedIndex >= 0) {
       const idx = Math.min(embedIndex, images.length - 1);
-      return c.html(buildEmbedHtml({ description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/images/${awemeId}/${idx + 1}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/images/${awemeId}/${idx + 1}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
     } else if (images.length > 1) {
-      return c.html(buildEmbedHtml({ description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/grid/${awemeId}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/grid/${awemeId}`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
     } else {
-      return c.html(buildEmbedHtml({ description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/images/${awemeId}/1`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
+      return c.html(buildEmbedHtml({ title: authorName, description, url: postUrl, proxyUrl: c.req.url, imageUrl: `${host}/tiktok/images/${awemeId}/1`, color: TIKTOK_COLOR, siteName: "TikTok", largeImage: true, oembedUrl }));
     }
   }
 
-  return c.redirect(`https://fxtiktok.thororen.com/@${username}/video/${awemeId}`, 302);
+  return c.html(buildEmbedHtml({
+    title: authorName,
+    description,
+    url: postUrl,
+    proxyUrl: c.req.url,
+    imageUrl: `${host}/tiktok/cover/${awemeId}`,
+    videoUrl: `${host}/tiktok/play/${awemeId}/video.mp4`,
+    videoWidth: item.video?.width,
+    videoHeight: item.video?.height,
+    color: TIKTOK_COLOR,
+    siteName: "TikTok",
+    oembedUrl
+  }));
 }
 
 async function handleUrlParam(c: Context, urlStr: string) {
