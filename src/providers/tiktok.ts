@@ -188,7 +188,8 @@ export const tiktokRouter = new Hono();
 tiktokRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
-    type: "rich",
+    type: (q.type as any) || "link",
+    author_name: q.type === "video" ? q.desc : undefined,
     author_url: q.url,
     provider_name: "LinkEmbedder / TikTok"
   }));
@@ -366,7 +367,7 @@ async function handleVideoEmbed(c: Context, awemeId: string, embedIndex = -1): P
     return c.redirect(postUrl, 302);
   }
 
-  const oembedUrl = `${host}/tiktok/oembed?url=${encodeURIComponent(postUrl)}`;
+  const oembedUrl = `${host}/tiktok/oembed?url=${encodeURIComponent(postUrl)}&type=${isVideo ? "video" : "link"}&desc=${encodeURIComponent(description)}`;
 
   if (item.imagePost?.images?.length) {
     const { images } = item.imagePost;
