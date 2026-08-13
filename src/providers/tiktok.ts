@@ -189,7 +189,6 @@ tiktokRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
     type: (q.type as any) || "link",
-    author_name: q.author,
     author_url: q.url,
     provider_name: "LinkEmbedder / TikTok"
   }));
@@ -230,19 +229,7 @@ tiktokRouter.get("/cover/:videoId", async c => {
   return proxyImage(url, c);
 });
 
-tiktokRouter.get("/play/:videoId/video.mp4", async c => {
-  const awemeId = c.req.param("videoId");
-  tiktokCache.delete(awemeId);
-
-  const item = await fetchVideoData(awemeId);
-  const playAddrUrl = findPlayUrl(item?.video);
-
-  if (!playAddrUrl) {
-    return c.redirect(`https://www.tiktok.com/@i/video/${awemeId}`, 302);
-  }
-
-  const range = c.req.header("range");
-
+async function tryStreamVideo(playAddrUrl: string, range: string | undefined): Promise<Response | null> {
   const isFxTikTok = playAddrUrl.includes("fxtiktok.thororen.com");
   const upstreamHeaders: Record<string, string> = {
     "User-Agent": isFxTikTok ? TIKTOK_DOWNLOAD_UA : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/134.0.0.0",
@@ -260,10 +247,7 @@ tiktokRouter.get("/play/:videoId/video.mp4", async c => {
   if (range) upstreamHeaders.Range = range;
 
   try {
-    let videoRes = await fetch(playAddrUrl, {
-      headers: upstreamHeaders,
-      redirect: "manual"
-    });
+    let videoRes = await fetch(playAddrUrl, { headers: upstreamHeaders, redirect: "manual" });
 
     if (videoRes.status === 301 || videoRes.status === 302) {
       const location = videoRes.headers.get("location");
@@ -272,10 +256,7 @@ tiktokRouter.get("/play/:videoId/video.mp4", async c => {
       }
     }
 
-    if (!videoRes.ok && videoRes.status !== 206) {
-      console.log(`TikTok video proxy failed for ${awemeId} — status ${videoRes.status} on URL: ${playAddrUrl}`);
-      return c.redirect(playAddrUrl, 302);
-    }
+    if (!videoRes.ok && videoRes.status !== 206) return null;
 
     const proxyHeaders = new Headers();
     ["Content-Type", "Content-Length", "Accept-Ranges", "Content-Range"].forEach(h => {
@@ -283,14 +264,35 @@ tiktokRouter.get("/play/:videoId/video.mp4", async c => {
     });
     if (!proxyHeaders.has("Accept-Ranges")) proxyHeaders.set("Accept-Ranges", "bytes");
 
-    return new Response(videoRes.body, {
-      status: videoRes.status,
-      headers: proxyHeaders
-    });
-  } catch (e) {
-    console.error("TikTok video proxy exception:", e);
-    return c.redirect(playAddrUrl, 302);
+    return new Response(videoRes.body, { status: videoRes.status, headers: proxyHeaders });
+  } catch {
+    return null;
   }
+}
+
+tiktokRouter.get("/play/:videoId/video.mp4", async c => {
+  const awemeId = c.req.param("videoId");
+  tiktokCache.delete(awemeId);
+
+  const item = await fetchVideoData(awemeId);
+  const playAddrUrl = findPlayUrl(item?.video);
+  const range = c.req.header("range");
+
+  if (playAddrUrl) {
+    const res = await tryStreamVideo(playAddrUrl, range);
+    if (res) return res;
+    console.log(`TikTok video proxy failed for ${awemeId} on primary URL: ${playAddrUrl}`);
+  }
+
+  const fxItem = await fetchVideoDataFxTikTok(awemeId);
+  const fxPlayAddrUrl = findPlayUrl(fxItem?.video);
+  if (fxPlayAddrUrl && fxPlayAddrUrl !== playAddrUrl) {
+    const res = await tryStreamVideo(fxPlayAddrUrl, range);
+    if (res) return res;
+    console.log(`TikTok video proxy failed for ${awemeId} on fxtiktok fallback URL: ${fxPlayAddrUrl}`);
+  }
+
+  return c.redirect(playAddrUrl ?? fxPlayAddrUrl ?? `https://www.tiktok.com/@i/video/${awemeId}`, 302);
 });
 
 tiktokRouter.get("/:videoId", async c => {
@@ -364,7 +366,7 @@ async function handleVideoEmbed(c: Context, awemeId: string, embedIndex = -1): P
     return c.redirect(postUrl, 302);
   }
 
-  const oembedUrl = `${host}/tiktok/oembed?author=${encodeURIComponent(authorName)}&url=${encodeURIComponent(postUrl)}&type=${isVideo ? "video" : "link"}`;
+  const oembedUrl = `${host}/tiktok/oembed?url=${encodeURIComponent(postUrl)}&type=${isVideo ? "video" : "link"}`;
 
   if (item.imagePost?.images?.length) {
     const { images } = item.imagePost;

@@ -229,15 +229,20 @@ async function scrapeFromMirror(postId: string): Promise<InstaData | null> {
   return null;
 }
 
-async function getInstaData(postId: string): Promise<InstaData | null> {
+function hasUsableMedia(data: InstaData | null, expectVideo: boolean): data is InstaData {
+  if (!data?.medias?.length) return false;
+  return !expectVideo || data.medias.some(m => m.typeName.includes("Video"));
+}
+
+async function getInstaData(postId: string, expectVideo = false): Promise<InstaData | null> {
   const cached = instagramCache.get(postId) as InstaData | undefined;
-  if (cached) return cached;
+  if (cached && hasUsableMedia(cached, expectVideo)) return cached;
 
   let data = await scrapeFromGQL(postId);
-  if (!data?.medias?.length) data = await scrapeFromEmbed(postId);
-  if (!data?.medias?.length) data = await scrapeFromMirror(postId);
+  if (!hasUsableMedia(data, expectVideo)) data = await scrapeFromEmbed(postId);
+  if (!hasUsableMedia(data, expectVideo)) data = await scrapeFromMirror(postId);
 
-  if (data) {
+  if (data?.medias?.length) {
     instagramCache.set(postId, data);
     return data;
   }
@@ -250,7 +255,6 @@ instagramRouter.get("/oembed", c => {
   const q = c.req.query();
   return c.json(buildOEmbed({
     type: (q.type as any) || "link",
-    author_name: q.user,
     author_url: q.url,
     provider_name: "LinkEmbedder / Instagram"
   }));
@@ -296,23 +300,29 @@ instagramRouter.get("/videos/:id/:n/video.mp4", async c => {
   const id = c.req.param("id");
   instagramCache.delete(id);
 
-  const data = await getInstaData(id);
+  const data = await getInstaData(id, true);
   if (!data) return c.redirect(`https://www.instagram.com/p/${id}/`, 302);
 
   const n = parseInt(c.req.param("n")) - 1;
   const mediaUrl = data.medias[Math.max(0, n)]?.url;
   if (!mediaUrl) return c.redirect(`https://www.instagram.com/p/${id}/`, 302);
 
+  const range = c.req.header("range");
+  const upstreamHeaders: Record<string, string> = {
+    Referer: "https://www.instagram.com/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    Accept: "*/*",
+    "sec-fetch-site": "cross-site",
+  };
+  if (range) upstreamHeaders.Range = range;
+
   try {
-    const videoRes = await fetch(mediaUrl, {
-      headers: {
-        Referer: "https://www.instagram.com/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-        Accept: "*/*",
-        "sec-fetch-site": "cross-site",
-      },
-      redirect: "manual"
-    });
+    let videoRes = await fetch(mediaUrl, { headers: upstreamHeaders, redirect: "manual" });
+
+    if (videoRes.status === 301 || videoRes.status === 302) {
+      const location = videoRes.headers.get("location");
+      if (location) videoRes = await fetch(location, { headers: upstreamHeaders, redirect: "manual" });
+    }
 
     if (!videoRes.ok && videoRes.status !== 206) {
       return c.redirect(mediaUrl, 302);
@@ -359,7 +369,7 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
 
   if (!isBot(ua) && !isDirect) return c.redirect(originalUrl, 302);
 
-  const data = await getInstaData(postId);
+  const data = await getInstaData(postId, ["reel", "reels", "tv"].includes(type));
   if (!data?.medias?.length) return c.redirect(originalUrl, 302);
 
   const host = getOrigin(c);
@@ -375,7 +385,7 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
   }
 
   const description = data.caption.slice(0, 280) + (data.caption.length > 280 ? "…" : "");
-  const oembedUrl = `${host}/ig/oembed?user=${encodeURIComponent(`@${data.username}`)}&url=${encodeURIComponent(originalUrl)}&type=${isVideo ? "video" : "link"}`;
+  const oembedUrl = `${host}/ig/oembed?url=${encodeURIComponent(originalUrl)}&type=${isVideo ? "video" : "link"}`;
   const title = `@${data.username}`;
 
   if (isVideo) {

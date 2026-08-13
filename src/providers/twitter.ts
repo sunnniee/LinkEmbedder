@@ -26,7 +26,7 @@ interface SyndicationTweet {
   extended_entities?: { media?: SyndicationMedia[]; };
   entities?: { media?: SyndicationMedia[]; };
   photos?: Array<{ url: string; width: number; height: number; }>;
-  video?: { url: string; poster?: string; aspectRatio?: [number, number]; };
+  video?: { url?: string; poster?: string; aspectRatio?: [number, number]; variants?: Array<{ type: string; src: string; }>; };
   mediaDetails?: SyndicationMedia[];
   quoted_tweet?: SyndicationTweet;
   card?: {
@@ -50,10 +50,6 @@ async function fetchTweet(id: string): Promise<SyndicationTweet | null> {
 }
 
 function getBestVideo(tweet: SyndicationTweet): { url: string; width?: number; height?: number; thumb?: string; } | null {
-  if (tweet.video) {
-    const ar = tweet.video.aspectRatio;
-    return { url: tweet.video.url, width: ar?.[0] ? ar[0] * 100 : undefined, height: ar?.[1] ? ar[1] * 100 : undefined, thumb: tweet.video.poster };
-  }
   const medias = tweet.mediaDetails ?? tweet.extended_entities?.media ?? tweet.entities?.media ?? [];
   for (const m of medias) {
     if ((m.type === "video" || m.type === "animated_gif") && m.video_info) {
@@ -66,6 +62,17 @@ function getBestVideo(tweet: SyndicationTweet): { url: string; width?: number; h
       }
     }
   }
+
+  if (tweet.video) {
+    const ar = tweet.video.aspectRatio;
+    let url = tweet.video.url;
+    if (!url && tweet.video.variants?.length) {
+      const mp4s = tweet.video.variants.filter(v => v.type === "video/mp4");
+      url = mp4s[mp4s.length - 1]?.src ?? mp4s[0]?.src;
+    }
+    if (url) return { url, width: ar?.[0] ? ar[0] * 100 : undefined, height: ar?.[1] ? ar[1] * 100 : undefined, thumb: tweet.video.poster };
+  }
+
   return null;
 }
 
@@ -121,7 +128,7 @@ async function handleTweet(c: Context, tweetId: string, routeUser?: string, embe
     if (photos.length) return c.redirect(photos[Math.max(0, embedIndex >= 0 ? Math.min(embedIndex, photos.length - 1) : 0)].url, 302);
   }
 
-  const oembedUrl = `${host}/twitter/oembed?desc=${encodeURIComponent(text)}&user=${encodeURIComponent(authorName)}&link=${encodeURIComponent(tweetUrl)}&ttype=${video ? "video" : "link"}`;
+  const oembedUrl = `${host}/twitter/oembed?desc=${encodeURIComponent(text)}&link=${encodeURIComponent(tweetUrl)}&ttype=${video ? "video" : "link"}`;
 
   if (video) {
     return c.html(buildEmbedHtml({
@@ -163,7 +170,7 @@ export const twitterRouter = new Hono();
 
 twitterRouter.get("/oembed", c => {
   const q = c.req.query();
-  return c.json(buildOEmbed({ type: (q.ttype as "link" | "photo" | "video") ?? "link", author_name: q.user, author_url: q.link, provider_name: q.provider ?? "LinkEmbedder / Twitter" }));
+  return c.json(buildOEmbed({ type: (q.ttype as "link" | "photo" | "video") ?? "link", author_url: q.link, provider_name: q.provider ?? "LinkEmbedder / Twitter" }));
 });
 
 twitterRouter.get("/grid/:id", async c => {
