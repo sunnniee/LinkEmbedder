@@ -304,10 +304,14 @@ async function handleEmbed(c: Context, manualId?: string, manualMediaNum?: strin
   if (!data?.medias?.length) return c.redirect(originalUrl, 302);
 
   const host = getOrigin(c);
-  const imgIndexParam = manualMediaNum || c.req.param("mediaNum") || c.req.query("img_index") || c.req.query("index");
-  const isGrid = data.medias.length > 1 && !imgIndexParam;
-  const idx = Math.max(0, (parseInt(imgIndexParam || "1") - 1));
+  // instagram has a zero-indexed param for index
+  const nativeImgIndexParam = c.req.query("img_index");
+  const imgIndexParam = manualMediaNum || c.req.param("mediaNum") || c.req.query("index");
+  const idx = nativeImgIndexParam
+    ? Math.max(0, parseInt(nativeImgIndexParam))
+    : Math.max(0, (parseInt(imgIndexParam || "1") - 1));
   const media = data.medias[Math.min(idx, data.medias.length - 1)];
+  const isGrid = data.medias.length > 1 && !imgIndexParam;
   const isVideo = media.typeName.includes("Video") || ["reel", "reels", "tv"].includes(type);
 
   if (isDirect) {
